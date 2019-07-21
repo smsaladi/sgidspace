@@ -32,7 +32,7 @@ from sgidspace.sgikeras.metrics import precision, recall, fmeasure
 from keras.models import Model
 from sgidspace.architecture import build_network
 
-from load_outputs import load_outputs
+from .load_outputs import load_outputs
 
 class InferenceEngine(object):
     def __init__(self, model, onehot_count, multihot_thresh, oprecision, eprecision, vector_form=False, skip_tasks=[], from_embed=False):
@@ -92,7 +92,7 @@ class InferenceEngine(object):
             hits = self._filter_and_format_hot(output, probs, good_indices)
         elif output['type'] == 'onehot':
             ct = min(self.onehot_count, len(probs))
-            good_indices = np.argpartition(-probs, range(ct))[:ct]
+            good_indices = np.argpartition(-probs, list(range(ct)))[:ct]
             hits = self._filter_and_format_hot(output, probs, good_indices)
         elif output['type'] in ('numeric'):
             hits = float(self._signif(probs[0], self.oprecision))
@@ -114,9 +114,9 @@ class InferenceEngine(object):
         for X, records in dataloader:
 
             yhat = self.model.predict_on_batch(X)
-            for recordi in xrange(len(records)):
+            for recordi in range(len(records)):
                 out = {}
-                for yi in xrange(len(self.outputs)):
+                for yi in range(len(self.outputs)):
                     output = self.outputs[yi]
                     probs = yhat[yi][recordi, :]
                     if vector_form:
@@ -192,13 +192,13 @@ class ChunkedFileWriter(object):
             for r in reslist:
                 # as jsonline
                 gzout.write(json.dumps(r) + '\n')
-        print 'wrote %s' % name
+        print('wrote %s' % name)
 
 
 class StdoutWriter(object):
     def write_results(self, infgen):
         for r in infgen:
-            print '%s\n' % json.dumps(r)
+            print('%s\n' % json.dumps(r))
 
 
 def parse_args():

@@ -109,10 +109,10 @@ class SGISequenceGenerator(object):
         try:
             data = self.data_handle.readline()
         except IOError as e:
-            print 'IO ERROR reading file: ' + filename
+            print('IO ERROR reading file: ' + filename)
             data = []
         except:
-            print 'Unknown ERROR reading file: ' + filename
+            print('Unknown ERROR reading file: ' + filename)
             data = []
 
         if len(data) == 0:

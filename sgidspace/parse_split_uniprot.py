@@ -131,7 +131,7 @@ class UniprotDataDict(object):
         return record_parsed
 
     def _cross_ref(self, record, feature):
-        return map(lambda x: x[1], filter(lambda x: x[0] == feature, record.cross_references))
+        return [x[1] for x in [x for x in record.cross_references if x[0] == feature]]
 
     def _tm_helix_count(self, record):
         tm_helix = 0
@@ -181,7 +181,7 @@ class UniprotDataJsonLines(object):
             current_rand = zip_code_rand.random()
             current_split = self._which_split(val_fraction, test_fraction, current_rand)
 
-            print >> file_handle[current_split], json.dumps(record)
+            print(json.dumps(record), file=file_handle[current_split])
             n_lines_in_current_file[current_split] += 1
 
             if n_lines_in_current_file[current_split] == 10000:

@@ -120,12 +120,12 @@ def extract_keywords(desc, phrase=False):
     words = [w for w in words if not any(regex.match(w) for regex in regex_filter)]
 
     # Latin conversions (clear cases)
-    for wi in xrange(len(words)):
+    for wi in range(len(words)):
         for ss in clear_latin_subs:
             words[wi] = re.sub(re.escape(ss[0]), ss[1], words[wi])
 
     # Latin conversions (ambiguous cases)
-    for wi in xrange(len(words)):
+    for wi in range(len(words)):
         for ss in ambiguous_latin_subs:
             if words[wi] == ss[0]:
                 words[wi] = ss[1]

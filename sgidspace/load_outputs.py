@@ -31,7 +31,7 @@ def _load_class_table(filename, datadir):
     freq = []
 
     f = open(path).__iter__()
-    f.next()
+    next(f)
     for line in f:
         if line.startswith("#"):
             continue

@@ -36,7 +36,7 @@ import numpy as np
 
 from datetime import datetime
 
-from load_outputs import load_outputs
+from .load_outputs import load_outputs
 
 start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

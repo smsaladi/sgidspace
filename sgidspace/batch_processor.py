@@ -57,7 +57,7 @@ def flatten_ec(ecnum):
 
     out = []
     x = ecnum.split('.')
-    for i in xrange(len(x)):
+    for i in range(len(x)):
         if x[i] != '-':
             out.append('.'.join(x[:(i+1)]))
 
@@ -113,7 +113,7 @@ class BatchProcessor():
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         if self.done:
             raise StopIteration()
         return self.fetch_batch()
@@ -154,7 +154,7 @@ class BatchProcessor():
     def fetch_records(self):
         records = []
 
-        for i in xrange(self.batch_size):
+        for i in range(self.batch_size):
             r = next(self.seq_generator, None)
             if r is None:
                 self.done = True
@@ -195,7 +195,7 @@ class BatchProcessor():
             Y[o['name']] = np.zeros(shape, dtype=dtype)
 
         # Copy record information
-        for i in xrange(len(records)):
+        for i in range(len(records)):
             record = records[i]
 
             if self.from_embed:
@@ -203,7 +203,7 @@ class BatchProcessor():
             else:
                 # input_sequence
                 input_sequence = record['protein_sequence']
-                for sequence_index in xrange(len(input_sequence)):
+                for sequence_index in range(len(input_sequence)):
                     symbol_index = self.input_symbols.get(input_sequence[sequence_index])
                     if symbol_index is not None:
                         X['sequence_input'][i, sequence_index, symbol_index] = 1

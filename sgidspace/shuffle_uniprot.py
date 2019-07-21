@@ -59,7 +59,7 @@ class ShuffleJsonFiles(object):
 
         lines_in_current_file = 0
         for record in self.all_records:
-            print >> file_handle, json.dumps(record)
+            print(json.dumps(record), file=file_handle)
             lines_in_current_file += 1
 
             if lines_in_current_file == 10000:
