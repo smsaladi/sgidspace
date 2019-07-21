@@ -32,7 +32,10 @@ from keras import backend as K
 from keras import optimizers
 from keras.utils.io_utils import ask_to_proceed_with_overwrite
 from keras.engine import topology
-from keras.legacy import models as legacy_models
+try:
+    from keras.legacy import models as legacy_models
+except ImportError:
+    warnings.warn("If keras legacy layers are required, the model won't compile")
 from keras.models import model_from_config, Sequential
 
 try:
