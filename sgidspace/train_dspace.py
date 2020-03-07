@@ -24,7 +24,7 @@ from sgidspace.batch_processor import make_batch_processor
 from sgidspace.architecture import build_network
 from keras.models import Model
 from keras.callbacks import TensorBoard, ModelCheckpoint
-from keras.utils import plot_model
+from keras.utils import plot_model, multi_gpu_model
 from keras.optimizers import Nadam
 
 # Monkey patching
@@ -129,6 +129,9 @@ def build_model(outputs):
             metrics[o['name']] = 'mean_squared_error'
 
     optimizer = Nadam(lr=0.001)
+    if ',' in os.environ.get('CUDA_VISIBLE_DEVICES', ''):
+        n_gpu = len(os.environ['CUDA_VISIBLE_DEVICES'].split(','))
+        model = multi_gpu_model(model, gpus=n_gpu)
 
     model.compile(
         optimizer=optimizer,
@@ -140,35 +143,17 @@ def build_model(outputs):
     return model
 
 
-def change_gpu_visibility(n_gpus):
-    # change GPU visibility
-    if "CUDA_VISIBLE_DEVICES" in os.environ:
-        currently_visible = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
-    else:
-        currently_visible = []
-    not_currently_visible = list(set("01234567").difference(set(currently_visible)))
-    gpu_ids = ",".join([
-        currently_visible[i]
-        if i < len(currently_visible) else not_currently_visible[i - len(currently_visible)]
-        for i in range(n_gpus)
-    ])
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
-
-
 def train_model(
         epochs,
         main_datadir,
         outdir,
         outputs,
-        n_gpus=1,
         output_subdirectory=None,
         classflags=None
 ):
     """
     Main function for setting up model and running training
     """
-    change_gpu_visibility(n_gpus)
-
     # add subdirectory to output
     subdirectory = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     if output_subdirectory is not None:
