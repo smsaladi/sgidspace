@@ -60,8 +60,13 @@ class UniprotDataDict(object):
             fileNumber += 1
             yield current_handle, fileNumber
 
-    def _check_id_to_use(self, recid):
-        return self.ids_to_use == {} or recid in self.ids_to_use
+    def _check_id_to_use(self, recids):
+        if self.ids_to_use == {}:
+            return True
+        for x in recids:
+            if x in self.ids_to_use:
+                return True
+        return False
 
     def _file_number_to_source(self, file_number):
         if (file_number == 2) or (file_number == 1 and not self.inputSprot):
@@ -73,7 +78,7 @@ class UniprotDataDict(object):
         for file_handle, file_number in self._uniprot_file_handle():
             data_source = self._file_number_to_source(file_number)
             for record in SwissProt.parse(file_handle):
-                if self._check_id_to_use(record.accessions[0]):
+                if self._check_id_to_use(record.accessions):
                     current_record_dict = self._parse_record(record, data_source)
                     yield current_record_dict
 
