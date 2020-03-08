@@ -54,7 +54,7 @@ class UniprotDataDict(object):
         for file_name in uniprot_files:
             if current_handle:
                 current_handle.close()
-            current_handle = gzip.open(file_name)
+            current_handle = gzip.open(file_name, 'rt')
             fileNumber += 1
             yield current_handle, fileNumber
 
@@ -127,7 +127,6 @@ class UniprotDataDict(object):
                 record_parsed['metacyc'] = metacyc_match.group(1)
 
         record_parsed["tm_helix_count"] = self._tm_helix_count(record)
-
         return record_parsed
 
     def _cross_ref(self, record, feature):
@@ -137,9 +136,9 @@ class UniprotDataDict(object):
         tm_helix = 0
         if record.features:
             for feature in record.features:
-                if len(feature) > 3:
-                    if feature[0] == 'TRANSMEM' and re.search('Helical', feature[3]):
-                        tm_helix += 1
+                if feature.type == 'TRANSMEM' and (
+                   'note' not in feature.qualifiers or 'Helical' in feature.qualifiers['note']):
+                    tm_helix += 1
         return tm_helix
 
 
@@ -192,7 +191,7 @@ class UniprotDataJsonLines(object):
 
     def _next_output_file(self, output_prefix, output_file_index):
         filename = '%s_%06d.json.gz' % (output_prefix, output_file_index)
-        f = gzip.open(filename, 'w')
+        f = gzip.open(filename, 'wt')
         return f
 
 
