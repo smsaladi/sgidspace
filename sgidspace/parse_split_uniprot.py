@@ -25,7 +25,7 @@ from Bio import SwissProt
 from random import Random
 
 import pandas as pd
-
+from tqdm import tqdm
 
 class UniprotDataDict(object):
     def __init__(self, inputSprot, inputTrembl, inputIdsToUse):
@@ -171,7 +171,7 @@ class UniprotDataJsonLines(object):
             file_handle[split] = self._next_output_file(self.output + split, output_file_number[split])
         n_lines_in_current_file = {'train': 0, 'val': 0, 'test': 0}
 
-        for record in data_records:
+        for record in tqdm(data_records):
             current_rand = zip_code_rand.random()
             current_split = self._which_split(val_fraction, test_fraction, current_rand)
 
