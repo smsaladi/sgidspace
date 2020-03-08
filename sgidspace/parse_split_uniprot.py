@@ -24,6 +24,8 @@ import re
 from Bio import SwissProt
 from random import Random
 
+import pandas as pd
+
 
 class UniprotDataDict(object):
     def __init__(self, inputSprot, inputTrembl, inputIdsToUse):
@@ -35,12 +37,12 @@ class UniprotDataDict(object):
 
     def _create_good_id_dict(self):
         self.ids_to_use = {}
-
         if self.inputIdsToUse:
-            with open(self.inputIdsToUse) as f:
-                for line in f:
-                    line = line.rstrip()
-                    self.ids_to_use[line] = 1
+            self.ids_to_use = pd.read_csv(
+                self.inputIdsToUse, header=None, index_col=0, engine='c')
+            self.ids_to_use['v'] = 1
+            self.ids_to_use = self.ids_to_use['v'].to_dict()
+        return
 
     def _uniprot_file_handle(self):
         uniprot_files = []
@@ -58,15 +60,8 @@ class UniprotDataDict(object):
             fileNumber += 1
             yield current_handle, fileNumber
 
-    def _check_id_to_use(self, id):
-        if self.inputIdsToUse:
-            if id in self.ids_to_use:
-                return True
-            else:
-                sys.stderr.write("Not using ID " + str(id) + "\n")
-                return False
-        else:
-            return True
+    def _check_id_to_use(self, recid):
+        return self.ids_to_use == {} or recid in self.ids_to_use
 
     def _file_number_to_source(self, file_number):
         if (file_number == 2) or (file_number == 1 and not self.inputSprot):
