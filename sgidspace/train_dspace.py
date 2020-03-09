@@ -195,10 +195,11 @@ def train_model(
 
     model.fit_generator(
         dataloader_train,
-        steps_per_epoch=1000,
         workers=1,
+        steps_per_epoch=max(dataloader_train.approx_batch_per_epoch, 1000),
+        max_queue_size=64,
         validation_data=dataloader_validation,
-        validation_steps=100,
+        validation_steps=max(dataloader_validation.approx_batch_per_epoch, 100),
         use_multiprocessing=False,
         callbacks=get_callbacks(outdir),
         epochs=epochs

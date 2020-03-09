@@ -19,7 +19,11 @@ A public demo of the D-SPACE annotation and search capabilities is available her
 3. Run parse_split_uniprot.py with data from steps 1 and 2
 4. Run shuffle_uniprot.py on each subset of the data (train, test, val)
 5. Move the resulting shuffled JSON files to 3 separate directories (named "train", "test", "val") within a common directory
+5a. Make a meta file that has the number of lines in each:
 
+```bash
+find data -name "*.gz" | parallel "pigz -cd {} | wc -l > {}.count"
+```
 
 6. Run
 

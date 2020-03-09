@@ -33,7 +33,7 @@ class SGISequenceGenerator(object):
             unbounded_iteration=True,
     ):
         self.filename_pattern = filename_pattern
-        self.filenames = glob.glob(filename_pattern)
+        self.filenames = [f for f in glob.glob(filename_pattern) if not f.endswith('.count')]
         if len(self.filenames) == 0:
             raise ValueError(
                 "Could not find filenames according to pattern {}".format(filename_pattern)
@@ -56,6 +56,23 @@ class SGISequenceGenerator(object):
 
         self.reset_count = 0
         self.unbounded_iteration = unbounded_iteration
+        
+        # count records
+        self.n_seq = 0
+        for fn in self.filenames:
+           fn += '.count'
+           if os.path.exists(fn):
+               with open(fn, 'r') as fh:
+                   self.n_seq += int(fh.readline())
+           else:
+               self.n_seq = None
+               break
+        return
+    
+    def __len__(self):
+        if self.n_seq is None:
+            raise ValueError("Count files are missing")
+        return self.n_seq
 
     def file_open(self, index):
         """

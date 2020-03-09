@@ -129,6 +129,11 @@ class BatchProcessor():
     ):
         self.batch_size = batch_size
         self.seq_generator = seq_generator
+        try:
+            self.approx_batch_per_epoch = np.ceil(len(seq_generator)/batch_size).astype(int)
+            print("Approx batchs/epoch", self.approx_batch_per_epoch)
+        except:
+            self.approx_batch_per_epoch = -1
         self.outputs = outputs
         self.inference = inference
         self.done = False
