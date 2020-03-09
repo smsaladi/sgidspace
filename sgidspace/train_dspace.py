@@ -28,8 +28,8 @@ from keras.utils import plot_model, multi_gpu_model
 from keras.optimizers import Nadam
 
 # Monkey patching
-from sgidspace.sgikeras.models import patch_all, load_model
-patch_all()
+# from sgidspace.sgikeras.models import patch_all, load_model
+# patch_all()
 from sgidspace.sgikeras.metrics import precision, recall, fmeasure
 
 import numpy as np
