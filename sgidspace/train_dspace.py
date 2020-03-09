@@ -57,18 +57,19 @@ def get_callbacks(outdir):
         verbose=1
     )
 
-    latest_checkpoint_callback = ModelCheckpoint(
-        '%s/model.run-%s.latest.hdf5' % (outdir, start_time),
+    all_checkpoint_callback = ModelCheckpoint(
+        '%s/model.run-%s.{epoch:02d}.hdf5' % (outdir, start_time),
         monitor='val_loss',
         save_best_only=False,
         mode='auto',
-        period=1
+        period=1,
+        verbose=1,
     )
 
     callbacks = [
         tensorboard_callback,
         best_checkpoint_callback,
-        latest_checkpoint_callback,
+        all_checkpoint_callback,
     ]
 
     return callbacks
