@@ -176,10 +176,10 @@ def train_model(
 
     # Get the dataloaders
     dataloader_train = make_batch_processor(
-        main_datadir, 'train', 512, outputs, classflags=classflags
+        main_datadir, 'train', 1024, outputs, classflags=classflags
     )
     dataloader_validation = make_batch_processor(
-        main_datadir, 'val', 512, outputs, classflags=classflags
+        main_datadir, 'val', 1024, outputs, classflags=classflags
     )
 
     model = build_model(outputs)
