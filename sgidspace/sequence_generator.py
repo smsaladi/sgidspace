@@ -70,6 +70,7 @@ class SGISequence(Sequence):
             shard_index=None,
             file_cache_size=10,
     ):
+        filenames = [f for f in filenames if not f.endswith('.count')]
         if shard_count is not None:
             if shard_count > len(filenames):
                 raise ValueError((
@@ -110,7 +111,6 @@ class SGISequence(Sequence):
         and within shards
         """
         self.reset_count += 1
-
         # shuffle sequences
         self.df = self.df.sample(frac=1).reset_index(drop=True)
 

@@ -26,9 +26,6 @@ from sgidspace.keywords import extract_keywords
 from sgidspace.gene_names import process_gene_name
 from load_outputs import load_outputs
 
-import keras.backend as K
-
-
 def flatten_ec(ecnum):
     if ecnum is None or ecnum == '':
         return ecnum
@@ -95,6 +92,7 @@ class BatchProcessor(SGISequence):
             file_cache_size=10,
             inference=False,
             from_embed=False,
+            floatx='float32'
     ):
         super().__init__(filenames=seq_shard_files, file_cache_size=file_cache_size)
         self.batch_size = batch_size
@@ -115,7 +113,7 @@ class BatchProcessor(SGISequence):
             if type(o['datafun']) is dict:
                 data_dicts[o['field']] = o['datafun']
         self.data_dicts = data_dicts
-
+        self.floatx = floatx
         return
 
     def __len__(self):
@@ -123,7 +121,7 @@ class BatchProcessor(SGISequence):
 
     def __getitem__(self, batch_idx):
         start = batch_idx * self.batch_size
-        stop = start + self.batch_size
+        stop = min(start + self.batch_size, super().__len__())
         records = [super(BatchProcessor, self).__getitem__(i) for i in range(start, stop)]
         return self.format_batch(records)
 
@@ -136,7 +134,7 @@ class BatchProcessor(SGISequence):
                     len(records),
                     self.esize,
                 ],
-                dtype=K.floatx(),
+                dtype=self.floatx,
             )
         else:
             X['sequence_input'] = np.zeros(
@@ -145,13 +143,13 @@ class BatchProcessor(SGISequence):
                     2000,
                     len(IUPAC_CODES),
                 ],
-                dtype=K.floatx(),
+                dtype=self.floatx,
             )
         Y = {}
 
         # initialize output buffer
         for o in self.outputs:
-            dtype = K.floatx()
+            dtype = self.floatx
             shape = [len(records), o['classcount']]
             Y[o['name']] = np.zeros(shape, dtype=dtype)
 
@@ -160,7 +158,7 @@ class BatchProcessor(SGISequence):
             record = transform_record(record, self.data_dicts)
 
             if self.from_embed:
-                X['embedding'][i,:] = np.array(record['embedding'], dtype=K.floatx())
+                X['embedding'][i,:] = np.array(record['embedding'], dtype=self.floatx)
             else:
                 # input_sequence
                 input_sequence = record['protein_sequence']
@@ -204,8 +202,8 @@ def main():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('shard_files', nargs='+')
-    parser.add_argument('--batch_id', default=1)
-    parser.add_argument('--batch_size', default=8)
+    parser.add_argument('--batch_id', default=1, type=int)
+    parser.add_argument('--batch_size', default=8, type=int)
     args = parser.parse_args()
     
     outputs = load_outputs('outputs.txt') 
@@ -213,15 +211,15 @@ def main():
             args.batch_size,
             outputs)
 
-    print(len(batch))
-
     # this will always be the same for a given shard_file input    
-    print(batch[args.batch_id])
+    for b in batch:
+        pass # print(batch[args.batch_id])
     
-    batch.on_epoch_end()
     # these will change everytime
-    print(batch[args.batch_id])
-
+    batch.on_epoch_end()
+    for b in batch:
+        pass # print(batch[args.batch_id])
+    
     return
 
 if __name__ == '__main__':
