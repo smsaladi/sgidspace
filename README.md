@@ -27,10 +27,10 @@ find sgidata/train -name "*.gz" | parallel --max-args 100 "python ~/github/sgids
 find sgidata/val -name "*.gz" | parallel --max-args 100 "python ~/github/sgidspace/sgidspace/filter_shard.py {} | pigz -p4 > sgidata_filt/val/val_{#}.json.gz" 2> /dev/null
 ```
 
-7. Make a meta file that has the number of lines in each:
+7. Convert to sqlitedbs
 
 ```bash
-find sgidata -name "*.gz" | parallel "pigz -cd {} | wc -l > {}.count"
+ls sgidata_filt/**/*.json.gz | parallel --plus "pigz -cd {} | python ~/github/sgidspace/sgidspace/convert_sqlitedb.py {..}.sqlite"
 ```
 
 6. Run

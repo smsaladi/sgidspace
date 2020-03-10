@@ -89,12 +89,11 @@ class BatchProcessor(SGISequence):
             seq_shard_files,
             batch_size,
             outputs,
-            file_cache_size=10,
             inference=False,
             from_embed=False,
             floatx='float32'
     ):
-        super().__init__(filenames=seq_shard_files, file_cache_size=file_cache_size)
+        super().__init__(filenames=seq_shard_files)
         self.batch_size = batch_size
 
         self.outputs = outputs

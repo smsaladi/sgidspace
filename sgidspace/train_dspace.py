@@ -27,6 +27,7 @@ from keras.models import Model
 from keras.callbacks import TensorBoard, ModelCheckpoint
 from keras.utils import plot_model, multi_gpu_model
 from keras.optimizers import Nadam
+import keras.backend as K 
 
 # Monkey patching
 # from sgidspace.sgikeras.models import patch_all, load_model
@@ -68,7 +69,7 @@ def get_callbacks(outdir):
     )
 
     callbacks = [
-        tensorboard_callback,
+        # tensorboard_callback,
         best_checkpoint_callback,
         all_checkpoint_callback,
     ]
@@ -176,29 +177,29 @@ def train_model(
 
     # Get the dataloaders
     dataloader_train = BatchProcessor(
-        glob.glob(os.path.join(main_datadir, 'train', '*.json.*')),
-        batch_size=1024, outputs=outputs,
+        glob.glob(os.path.join(main_datadir, 'train', '*.sqlite')),
+        batch_size=1024, outputs=outputs, floatx=K.floatx()
     )
     dataloader_validation = BatchProcessor(
-        glob.glob(os.path.join(main_datadir, 'val', '*.json.*')),
-        batch_size=1024, outputs=outputs,
+        glob.glob(os.path.join(main_datadir, 'val', '*.sqlite')),
+        batch_size=1024, outputs=outputs, floatx=K.floatx()
     )
 
     model = build_model(outputs)
 
     # Draw model graph
-    plot_model(model, to_file=outdir + '/model.png', show_shapes=True)
+    # plot_model(model, to_file=outdir + '/model.png', show_shapes=True)
 
     training_start_time = datetime.now()
     print("Started training at: " + training_start_time.strftime("%Y-%m-%d %H:%M:%S"))
 
     # Draw model graph
-    plot_model(model, to_file=outdir + '/model.png', show_shapes=True)
+    # plot_model(model, to_file=outdir + '/model.png', show_shapes=True)
 
     model.fit_generator(
         dataloader_train,
-        workers=1,
-        max_queue_size=64,
+        workers=4,
+        max_queue_size=1,
         validation_data=dataloader_validation,
         use_multiprocessing=False,
         callbacks=get_callbacks(outdir),
@@ -206,7 +207,7 @@ def train_model(
     )
     training_end_time = datetime.now()
     print("Ended training at: " + training_end_time.strftime("%Y-%m-%d %H:%M:%S"))
-
+    return
 
 def main():
 

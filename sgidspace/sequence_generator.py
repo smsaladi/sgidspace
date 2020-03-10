@@ -16,51 +16,48 @@
 #  along with sgidspace.  If not, see <http://www.gnu.org/licenses/>.
 #
 #------------------------------------------------------------------------------
+import sys
 import gzip
 import json
 import random
 import argparse
+import zlib
+import time
+import random
+import threading
 
 import numpy as np
 import pandas as pd
 from keras.utils import Sequence
 
+import sqlalchemy as db
+from sqlalchemy.orm import Session
+
+from convert_sqlitedb import Entry
+
 IUPAC_CODES = list('ACDEFGHIKLMNPQRSTVWY*')
 
-class FileCache():
-    """A simple queue-like file cache
-    """
-    def __init__(self, fns, cache_size, read_file):
-        self.fns = fns
-        self.max_cache = cache_size
-        self.read_file = read_file
-        self._fc = []
-        return
-
-    def __getitem__(self, fn):
-        for i, x in enumerate(self._fc):
-            f, fdata = x
-            if fn == f:
-                # move to front
-                if i != 0:
-                    self._fc = self._fc.insert(0, self._fc.pop(i))
-                return fdata
-
-        if len(self) >= self.max_cache - 1:
-            self._fc = self._fc[:(self.max_cache - 1)]
-
-        fdata = self.read_file(fn)
-        self._fc.insert(0, (fn, fdata))
+class DBEngine():
+    def __init__(self, sqlitefn):
+        self.threadid = threading.get_ident()
+        self.sqlitefn = sqlitefn
+        self._start_conn()
         
-        return fdata
+    def _start_conn(self):
+        engine = db.create_engine('sqlite:///' + self.sqlitefn,
+            connect_args={'check_same_thread': False})
+        self.s = Session(bind=engine)
 
     def __len__(self):
-        return len(self._fc)
+        return self.s.query(Entry).count()
 
-
-def read_json_lines(fn):
-    with gzip.open(fn, 'rt') as fh:
-        return [json.loads(l) for l in fh.readlines()]
+    def __getitem__(self, i):
+        if threading.get_ident() != self.threadid:
+            # self._start_conn()
+            pass
+        i = int(i) + 1
+        e = self.s.query(Entry).get(i)
+        return json.loads(e.data)
 
 class SGISequence(Sequence):
     def __init__(
@@ -68,9 +65,8 @@ class SGISequence(Sequence):
             filenames,
             shard_count=None,
             shard_index=None,
-            file_cache_size=10,
     ):
-        filenames = [f for f in filenames if not f.endswith('.count')]
+
         if shard_count is not None:
             if shard_count > len(filenames):
                 raise ValueError((
@@ -82,20 +78,19 @@ class SGISequence(Sequence):
 
             filenames.sort()
             filenames = filenames[shard_index::shard_count]
-        
+
+        self.files = {f: DBEngine(f) for f in filenames}
+
         # set up sequence "directory"
         seqs = pd.Series(index=filenames, dtype=int)
         seqs.index.name = 'fn'
-        for fn in filenames:
-           with open(fn + '.count', 'r') as fh:
-               seqs[fn] = int(fh.readline())
+        for f in self.files.keys():
+            seqs[f] = len(self.files[f])
         seqs = seqs.apply(np.arange).explode()
         seqs.name = 'lidx'
         self.df = seqs.reset_index()
-        
-        # set up file cache
-        self.file = FileCache(filenames, file_cache_size, read_json_lines)
-        self.reset_count = 0
+
+        self.n_epoch = 0
         return
     
     def __len__(self):
@@ -103,31 +98,24 @@ class SGISequence(Sequence):
 
     def __getitem__(self, i):
         fn, lidx = self.df.loc[i, ['fn', 'lidx']]
-        return self.file[fn][lidx]
-   
+        return self.files[fn][lidx]
+
     def on_epoch_end(self):
         """
-        Resets the starting index of this dataset to zero. Shuffles shard order
-        and within shards
+        Resets the starting index of this dataset to zero. Shuffles sequences
         """
-        self.reset_count += 1
-        # shuffle sequences
+        self.n_epoch += 1
         self.df = self.df.sample(frac=1).reset_index(drop=True)
-
-        # shuffle shards (seqs from each shard stay together)
-        groups = [self.df for _, self.df in self.df.groupby('fn')]
-        random.shuffle(groups)
-        self.df = pd.concat(groups).reset_index(drop=True)
         return
 
-    
 def main():
     """For testing purposes
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('shard_files', nargs='+')
+    parser.add_argument('sqlitedb', nargs='+')
     args = parser.parse_args()
-    seqs = SGISequence(args.shard_files)
+
+    seqs = SGISequence(args.sqlitedb)
     
     # these are always the same (for a given shard_file input)
     for i in range(5):
