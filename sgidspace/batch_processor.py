@@ -30,10 +30,8 @@ import keras.backend as K
 
 
 def flatten_ec(ecnum):
-    if ecnum is None:
-        return None
-    elif ecnum is '':
-        return ''
+    if ecnum is None or ecnum == '':
+        return ecnum
 
     out = []
     x = ecnum.split('.')
