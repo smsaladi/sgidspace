@@ -60,15 +60,14 @@ def fbeta_score(y_true, y_pred, beta=1):
     if beta < 0:
         raise ValueError('The lowest choosable beta is zero (only precision).')
 
-    # If there are no true positives, fix the F score at 0 like sklearn.
-    if K.sum(K.round(K.clip(y_true, 0, 1))) == 0:
-        return 0
-
     p = precision(y_true, y_pred)
     r = recall(y_true, y_pred)
     bb = beta**2
     fbeta_score = (1 + bb) * (p * r) / (bb * p + r + K.epsilon())
-    return fbeta_score
+
+    # If there are no true positives, fix the F score at 0 like sklearn.
+    n_tp = K.sum(K.round(K.clip(y_true, 0, 1)))
+    return K.min([n_tp, fbeta_score])
 
 
 def fmeasure(y_true, y_pred):
