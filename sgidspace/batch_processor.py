@@ -16,37 +16,17 @@
 #  along with sgidspace.  If not, see <http://www.gnu.org/licenses/>.
 #
 #------------------------------------------------------------------------------
+import argparse
+
 import numpy as np
 
-from sgidspace.sequence_generator import SGISequenceGenerator, IUPAC_CODES
-from sgidspace.filters import filter_records, get_nested_key
+from sgidspace.sequence_generator import SGISequence, IUPAC_CODES
+from sgidspace.filters import get_nested_key
 from sgidspace.keywords import extract_keywords
 from sgidspace.gene_names import process_gene_name
+from load_outputs import load_outputs
+
 import keras.backend as K
-
-
-def make_batch_processor(
-        main_datadir,
-        subdir,
-        batch_size,
-        outputs,
-        inference=False,
-        classflags=None,
-        unbounded_iteration=True,
-        from_embed=False
-):
-    seq_generator = SGISequenceGenerator(
-        main_datadir + '/' + subdir + '/*.json*',
-        unbounded_iteration=unbounded_iteration
-    )
-    return BatchProcessor(
-            seq_generator,
-            batch_size,
-            outputs,
-            inference=inference,
-            classflags=classflags,
-            from_embed=from_embed
-        )
 
 
 def flatten_ec(ecnum):
@@ -64,79 +44,65 @@ def flatten_ec(ecnum):
     return out
 
 
-def transform_records(generator, data_dicts):
+def transform_record(data, data_dicts):
     """
     modify records from the form they take on disk to the format used by batch processor
     """
-    for data in generator:
-        if 'translation_description' in data:
-            data['translation_description_keywords'] = extract_keywords(data['translation_description'])
+    data = data.copy()
+    if 'translation_description' in data:
+        data['translation_description_keywords'] = extract_keywords(data['translation_description'])
 
-        if 'gene_name' in data:
-            data['gene_name'] = [process_gene_name(data['gene_name'])]
+    if 'gene_name' in data:
+        data['gene_name'] = [process_gene_name(data['gene_name'])]
 
-        if 'ec_number' in data:
-            data['ec_number_ecflat'] = flatten_ec(data['ec_number'])
+    if 'ec_number' in data:
+        data['ec_number_ecflat'] = flatten_ec(data['ec_number'])
 
-        if 'gene3d' in data:
-            x = []
-            for v in data['gene3d']:
-                x += flatten_ec(v)
-            data['gene3d_ecflat'] = list(np.unique(x))
+    if 'gene3d' in data:
+        x = []
+        for v in data['gene3d']:
+            x += flatten_ec(v)
+        data['gene3d_ecflat'] = list(np.unique(x))
 
-        if 'diamond' in data:
-            data['diamond_cluster_id'] = [data['diamond']['cluster_id']]
+    if 'diamond' in data:
+        data['diamond_cluster_id'] = [data['diamond']['cluster_id']]
 
-        for field in data_dicts:
-            if field in data:
-                dtransform = data_dicts[field]
-                if type(data[field]) is list:
-                    s = set()
-                    for x in data[field]:
-                        for v in dtransform.get(str(x), []):
-                            s.add(v)
-                            data[field + '_dict'] = list(s)
-                else:
-                    data[field + '_dict'] = dtransform.get(str(data[field]), [])
+    for field in data_dicts:
+        if field in data:
+            dtransform = data_dicts[field]
+            if type(data[field]) is list:
+                s = set()
+                for x in data[field]:
+                    for v in dtransform.get(str(x), []):
+                        s.add(v)
+                        data[field + '_dict'] = list(s)
+            else:
+                data[field + '_dict'] = dtransform.get(str(data[field]), [])
 
-        yield data
+    return data
 
 
-class BatchProcessor():
+class BatchProcessor(SGISequence):
     """
     Generates batches of data for training
 
-    SGISequenceGenerator is used as a starting point which is subsequently
-    filtered, transformed, and grouped into batches of size `batch_size`.
+    SGISequence is used as a starting point which is subsequently
+    transformed and grouped into batches of size `batch_size`.
     """
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.done:
-            raise StopIteration()
-        return self.fetch_batch()
-
     def __init__(
             self,
-            seq_generator,
+            seq_shard_files,
             batch_size,
             outputs,
+            file_cache_size=10,
             inference=False,
-            classflags=None,
-            from_embed=False
+            from_embed=False,
     ):
+        super().__init__(filenames=seq_shard_files, file_cache_size=file_cache_size)
         self.batch_size = batch_size
-        self.seq_generator = seq_generator
-        try:
-            self.approx_batch_per_epoch = np.ceil(len(seq_generator)/batch_size).astype(int)
-            print("Approx batchs/epoch", self.approx_batch_per_epoch)
-        except:
-            self.approx_batch_per_epoch = -1
+
         self.outputs = outputs
         self.inference = inference
-        self.done = False
         self.input_symbols = {label: i for i, label in enumerate(IUPAC_CODES)}
         self.from_embed = from_embed
 
@@ -150,28 +116,20 @@ class BatchProcessor():
                 self.class_index[o['name']] = {label: i for i, label in enumerate(o['class_labels'])}
             if type(o['datafun']) is dict:
                 data_dicts[o['field']] = o['datafun']
+        self.data_dicts = data_dicts
 
-        self.seq_generator = transform_records(self.seq_generator, data_dicts)
+        return
 
-        if not from_embed:
-            self.seq_generator = filter_records(self.seq_generator, outputs, classflags=classflags, inference=inference)
+    def __len__(self):
+        return np.ceil(super().__len__()/self.batch_size).astype(int)
 
-    def fetch_records(self):
-        records = []
+    def __getitem__(self, batch_idx):
+        start = batch_idx * self.batch_size
+        stop = start + self.batch_size
+        records = [super(BatchProcessor, self).__getitem__(i) for i in range(start, stop)]
+        return self.format_batch(records)
 
-        for i in range(self.batch_size):
-            r = next(self.seq_generator, None)
-            if r is None:
-                self.done = True
-                break
-
-            records.append(r)
-
-        return records
-
-    def fetch_batch(self):
-        records = self.fetch_records()
-
+    def format_batch(self, records):
         # initialize input
         X = {}
         if self.from_embed:
@@ -200,8 +158,8 @@ class BatchProcessor():
             Y[o['name']] = np.zeros(shape, dtype=dtype)
 
         # Copy record information
-        for i in range(len(records)):
-            record = records[i]
+        for i, record in enumerate(records):
+            record = transform_record(record, self.data_dicts)
 
             if self.from_embed:
                 X['embedding'][i,:] = np.array(record['embedding'], dtype=K.floatx())
@@ -239,5 +197,35 @@ class BatchProcessor():
         
         if self.inference:
             return X, records
-        else:
-            return X, Y
+        
+        return X, Y
+
+
+def main():
+    """For testing purposes
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('shard_files', nargs='+')
+    parser.add_argument('--batch_id', default=1)
+    parser.add_argument('--batch_size', default=8)
+    args = parser.parse_args()
+    
+    outputs = load_outputs('outputs.txt') 
+    batch = BatchProcessor(args.shard_files,
+            args.batch_size,
+            outputs)
+
+    print(len(batch))
+
+    # this will always be the same for a given shard_file input    
+    print(batch[args.batch_id])
+    
+    batch.on_epoch_end()
+    # these will change everytime
+    print(batch[args.batch_id])
+
+    return
+
+if __name__ == '__main__':
+    main()
+

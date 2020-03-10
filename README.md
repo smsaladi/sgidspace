@@ -19,10 +19,18 @@ A public demo of the D-SPACE annotation and search capabilities is available her
 3. Run parse_split_uniprot.py with data from steps 1 and 2
 4. Run shuffle_uniprot.py on each subset of the data (train, test, val)
 5. Move the resulting shuffled JSON files to 3 separate directories (named "train", "test", "val") within a common directory
-5a. Make a meta file that has the number of lines in each:
+6. Filter resulting JSON files to those that will be used for training
 
 ```bash
-find data -name "*.gz" | parallel "pigz -cd {} | wc -l > {}.count"
+find sgidata/test -name "*.gz" | parallel --max-args 100 "python ~/github/sgidspace/sgidspace/filter_shard.py {} | pigz -p4 > sgidata_filt/test/test_{#}.json.gz" 2> /dev/null
+find sgidata/train -name "*.gz" | parallel --max-args 100 "python ~/github/sgidspace/sgidspace/filter_shard.py {} | pigz -p4 > sgidata_filt/train/train_{#}.json.gz" 2> /dev/null
+find sgidata/val -name "*.gz" | parallel --max-args 100 "python ~/github/sgidspace/sgidspace/filter_shard.py {} | pigz -p4 > sgidata_filt/val/val_{#}.json.gz" 2> /dev/null
+```
+
+7. Make a meta file that has the number of lines in each:
+
+```bash
+find sgidata -name "*.gz" | parallel "pigz -cd {} | wc -l > {}.count"
 ```
 
 6. Run

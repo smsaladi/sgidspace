@@ -19,8 +19,9 @@
 import argparse
 import os
 import subprocess
+import glob
 
-from sgidspace.batch_processor import make_batch_processor
+from sgidspace.batch_processor import BatchProcessor
 from sgidspace.architecture import build_network
 from keras.models import Model
 from keras.callbacks import TensorBoard, ModelCheckpoint
@@ -150,7 +151,6 @@ def train_model(
         outdir,
         outputs,
         output_subdirectory=None,
-        classflags=None
 ):
     """
     Main function for setting up model and running training
@@ -175,11 +175,13 @@ def train_model(
             class_weights.append(None)
 
     # Get the dataloaders
-    dataloader_train = make_batch_processor(
-        main_datadir, 'train', 1024, outputs, classflags=classflags
+    dataloader_train = BatchProcessor(
+        glob.glob(os.path.join(main_datadir, 'train', '*.json.*')),
+        batch_size=1024, outputs=outputs,
     )
-    dataloader_validation = make_batch_processor(
-        main_datadir, 'val', 1024, outputs, classflags=classflags
+    dataloader_validation = BatchProcessor(
+        glob.glob(os.path.join(main_datadir, 'val', '*.json.*')),
+        batch_size=1024, outputs=outputs,
     )
 
     model = build_model(outputs)
@@ -196,10 +198,8 @@ def train_model(
     model.fit_generator(
         dataloader_train,
         workers=1,
-        steps_per_epoch=max(dataloader_train.approx_batch_per_epoch, 1000),
         max_queue_size=64,
         validation_data=dataloader_validation,
-        validation_steps=max(dataloader_validation.approx_batch_per_epoch, 100),
         use_multiprocessing=False,
         callbacks=get_callbacks(outdir),
         epochs=epochs
@@ -219,19 +219,13 @@ def main():
         '-o', '--output', default='/output', help='output path to write output files to'
     )
     parser.add_argument('-e', '--epochs', type=int, default=10, help='Number of epochs')
-    parser.add_argument('--tigrfam_filter', type=str, help='Skip records containing at least one of the listed tifgrfams. (comma separated)')
     args = parser.parse_args()
 
     # Construct outputs
     outputs = load_outputs('outputs.txt')
 
-    # Construct classflags
-    classflags = None
-    if args.tigrfam_filter:
-        classflags = {"tigrfams": args.tigrfam_filter.split(',')}
-
     # Train model
-    train_model(args.epochs, args.datadir, args.output, outputs, classflags=classflags)
+    train_model(args.epochs, args.datadir, args.output, outputs)
 
 
 if __name__ == '__main__':

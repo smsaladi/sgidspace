@@ -16,142 +16,130 @@
 #  along with sgidspace.  If not, see <http://www.gnu.org/licenses/>.
 #
 #------------------------------------------------------------------------------
-import glob
 import gzip
 import json
 import random
+import argparse
+
+import numpy as np
+import pandas as pd
+from keras.utils import Sequence
 
 IUPAC_CODES = list('ACDEFGHIKLMNPQRSTVWY*')
 
+class FileCache():
+    """A simple queue-like file cache
+    """
+    def __init__(self, fns, cache_size, read_file):
+        self.fns = fns
+        self.max_cache = cache_size
+        self.read_file = read_file
+        self._fc = []
+        return
 
-class SGISequenceGenerator(object):
+    def __getitem__(self, fn):
+        for i, x in enumerate(self._fc):
+            f, fdata = x
+            if fn == f:
+                # move to front
+                if i != 0:
+                    self._fc = self._fc.insert(0, self._fc.pop(i))
+                return fdata
+
+        if len(self) >= self.max_cache - 1:
+            self._fc = self._fc[:(self.max_cache - 1)]
+
+        fdata = self.read_file(fn)
+        self._fc.insert(0, (fn, fdata))
+        
+        return fdata
+
+    def __len__(self):
+        return len(self._fc)
+
+
+def read_json_lines(fn):
+    with gzip.open(fn, 'rt') as fh:
+        return [json.loads(l) for l in fh.readlines()]
+
+class SGISequence(Sequence):
     def __init__(
             self,
-            filename_pattern,
+            filenames,
             shard_count=None,
             shard_index=None,
-            unbounded_iteration=True,
+            file_cache_size=10,
     ):
-        self.filename_pattern = filename_pattern
-        self.filenames = [f for f in glob.glob(filename_pattern) if not f.endswith('.count')]
-        if len(self.filenames) == 0:
-            raise ValueError(
-                "Could not find filenames according to pattern {}".format(filename_pattern)
-            )
-
         if shard_count is not None:
-            if shard_count > len(self.filenames):
+            if shard_count > len(filenames):
                 raise ValueError((
                     'shard_count must be <= the number of files for now. '
                     'requested {} shards but only found {} filenames'
-                ).format(shard_count, len(self.filenames)))
+                ).format(shard_count, len(filenames)))
             if shard_index is None:
                 raise ValueError('if shard_count is not None, shard_index must not be None')
 
-            self.filenames.sort()
-            self.filenames = self.filenames[shard_index::shard_count]
-
-        self.filename_index = 0
-        self.data_handle = None
-
-        self.reset_count = 0
-        self.unbounded_iteration = unbounded_iteration
+            filenames.sort()
+            filenames = filenames[shard_index::shard_count]
         
-        # count records
-        self.n_seq = 0
-        for fn in self.filenames:
-           fn += '.count'
-           if os.path.exists(fn):
-               with open(fn, 'r') as fh:
-                   self.n_seq += int(fh.readline())
-           else:
-               self.n_seq = None
-               break
+        # set up sequence "directory"
+        seqs = pd.Series(index=filenames, dtype=int)
+        seqs.index.name = 'fn'
+        for fn in filenames:
+           with open(fn + '.count', 'r') as fh:
+               seqs[fn] = int(fh.readline())
+        seqs = seqs.apply(np.arange).explode()
+        seqs.name = 'lidx'
+        self.df = seqs.reset_index()
+        
+        # set up file cache
+        self.file = FileCache(filenames, file_cache_size, read_json_lines)
+        self.reset_count = 0
         return
     
     def __len__(self):
-        if self.n_seq is None:
-            raise ValueError("Count files are missing")
-        return self.n_seq
+        return self.df.shape[0]
 
-    def file_open(self, index):
+    def __getitem__(self, i):
+        fn, lidx = self.df.loc[i, ['fn', 'lidx']]
+        return self.file[fn][lidx]
+   
+    def on_epoch_end(self):
         """
-        Open the file located at index in self.filenames and sets handle to
-        self.data_handle
-
-        If file is gzip, open as decompressed stream
-        """
-
-        if self.data_handle:
-            self.data_handle.close()
-
-        filename = self.filenames[index]
-
-        if filename.endswith('.gz'):
-            self.data_handle = gzip.GzipFile(filename, 'rb')
-        else:
-            self.data_handle = open(filename, 'rb')
-
-    def reset(self):
-        """
-        Resets the starting index of this dataset to zero. Useful for calling
-        repeated evaluations on the dataset without having to wrap around the
-        last uneven minibatch. Not necessary when data is divisible by batch
-        size
+        Resets the starting index of this dataset to zero. Shuffles shard order
+        and within shards
         """
         self.reset_count += 1
-        self.filename_index = 0
 
-        random.shuffle(self.filenames)
-        self.file_open(self.filename_index)
+        # shuffle sequences
+        self.df = self.df.sample(frac=1).reset_index(drop=True)
 
-    def next_file(self):
-        """
-        Point data_handle to next file (wrapping around at beginning if need
-        be)
-        """
-        if self.filename_index == len(self.filenames) - 1:
-            self.reset()
-        else:
-            self.filename_index += 1
-            self.file_open(self.filename_index)
+        # shuffle shards (seqs from each shard stay together)
+        groups = [self.df for _, self.df in self.df.groupby('fn')]
+        random.shuffle(groups)
+        self.df = pd.concat(groups).reset_index(drop=True)
+        return
 
-    def read_next_line(self):
-        """
-        Read the next line from the currently open file.  If there are no more
-        lines in that file, open the next one.
-        """
-        filename = self.filenames[self.filename_index]
+    
+def main():
+    """For testing purposes
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('shard_files', nargs='+')
+    args = parser.parse_args()
+    seqs = SGISequence(args.shard_files)
+    
+    # these are always the same (for a given shard_file input)
+    for i in range(5):
+        print(seqs[i])
+    
+    seqs.on_epoch_end()
+    # these will change everytime
+    for i in range(5):
+        print(seqs[i])
 
-        try:
-            data = self.data_handle.readline()
-        except IOError as e:
-            print('IO ERROR reading file: ' + filename)
-            data = []
-        except:
-            print('Unknown ERROR reading file: ' + filename)
-            data = []
+    return
 
-        if len(data) == 0:
-            self.next_file()
-            return (self.read_next_line())
+if __name__ == '__main__':
+    main()
 
-        if isinstance(data, bytes):
-            data = json.loads(data.decode('utf-8'))
-        else:
-            data = json.loads(data)
-
-        return data
-
-    def __iter__(self):
-        """
-        yield each record in the data set one time
-        """
-        self.reset()
-
-        start_reset_count = self.reset_count
-        while True:
-            record = self.read_next_line()
-            if not self.unbounded_iteration and start_reset_count != self.reset_count:
-                break
-            yield record
