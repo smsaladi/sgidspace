@@ -21,13 +21,17 @@ import os
 import subprocess
 import glob
 
-from sgidspace.batch_processor import BatchProcessor
-from sgidspace.architecture import build_network
+import tensorflow as tf
 from keras.models import Model
-from keras.callbacks import TensorBoard, ModelCheckpoint
+from keras.callbacks import TensorBoard, ModelCheckpoint, Callback
 from keras.utils import plot_model, multi_gpu_model
 from keras.optimizers import Nadam
 import keras.backend as K 
+import keras.backend.tensorflow_backend as tfback
+
+
+from sgidspace.batch_processor import BatchProcessor
+from sgidspace.architecture import build_network
 
 # Monkey patching
 # from sgidspace.sgikeras.models import patch_all, load_model
@@ -40,7 +44,39 @@ from datetime import datetime
 
 from load_outputs import load_outputs
 
-start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+start_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+
+
+def _get_available_gpus():
+    """Get a list of available gpu devices (formatted as strings).
+    # https://github.com/keras-team/keras/issues/13684#issuecomment-595054461
+    # Returns
+        A list of available GPU devices.
+    """
+    #global _LOCAL_DEVICES
+    if tfback._LOCAL_DEVICES is None:
+        devices = tf.config.list_logical_devices()
+        tfback._LOCAL_DEVICES = [x.name for x in devices]
+    return [x for x in tfback._LOCAL_DEVICES if 'device:gpu' in x.lower()]
+tfback._get_available_gpus = _get_available_gpus
+
+
+
+class WeightsSaver(Callback):
+    """From https://stackoverflow.com/a/44058144/2320823"""
+    def __init__(self, N, fmt, **kwargs):
+        self.N = N
+        self.batch = 0
+        self.fmt = fmt
+        self.kwargs = kwargs
+
+    def on_batch_end(self, batch, logs={}):
+        if self.batch % self.N == self.N - 1:
+            time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+            name = self.fmt.format(**self.kwargs, t=time, b=batch)
+            self.model.save(name)
+        self.batch += 1
+
 
 def get_callbacks(outdir):
     # Get callbacks
@@ -68,10 +104,17 @@ def get_callbacks(outdir):
         verbose=1,
     )
 
+    batch_checkpoint_callback = WeightsSaver(10000,
+            fmt='{outdir}/model.run-{start}.t{t}.b{b}.h5',
+            outdir=outdir,
+            start=start_time,
+    )
+
     callbacks = [
-        # tensorboard_callback,
+        tensorboard_callback,
         best_checkpoint_callback,
         all_checkpoint_callback,
+        batch_checkpoint_callback
     ]
 
     return callbacks
@@ -178,11 +221,11 @@ def train_model(
     # Get the dataloaders
     dataloader_train = BatchProcessor(
         glob.glob(os.path.join(main_datadir, 'train', '*.sqlite')),
-        batch_size=1024, outputs=outputs, floatx=K.floatx()
+        batch_size=512, outputs=outputs, floatx=K.floatx()
     )
     dataloader_validation = BatchProcessor(
         glob.glob(os.path.join(main_datadir, 'val', '*.sqlite')),
-        batch_size=1024, outputs=outputs, floatx=K.floatx()
+        batch_size=512, outputs=outputs, floatx=K.floatx()
     )
 
     model = build_model(outputs)
@@ -198,8 +241,8 @@ def train_model(
 
     model.fit_generator(
         dataloader_train,
-        workers=4,
-        max_queue_size=1,
+        workers=6,
+        max_queue_size=32,
         validation_data=dataloader_validation,
         use_multiprocessing=False,
         callbacks=get_callbacks(outdir),
