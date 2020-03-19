@@ -28,7 +28,7 @@ import threading
 
 import numpy as np
 import pandas as pd
-from keras.utils import Sequence
+from tensorflow.keras.utils import Sequence
 
 import sqlalchemy as db
 from sqlalchemy.orm import Session
