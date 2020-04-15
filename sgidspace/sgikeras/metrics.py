@@ -16,7 +16,7 @@
 #  along with sgidspace.  If not, see <http://www.gnu.org/licenses/>.
 #
 #------------------------------------------------------------------------------
-from keras import backend as K
+from tensorflow.keras import backend as K
 
 def precision(y_true, y_pred):
     """Precision metric.

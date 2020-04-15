@@ -21,22 +21,22 @@
 
 
 import sgidspace.sgikeras
-import keras
+from tensorflow import keras
 
 import warnings
 import json
 import os
 import numpy as np
 
-from keras import backend as K
-from keras import optimizers
-from keras.utils.io_utils import ask_to_proceed_with_overwrite
-from keras.engine import topology
+from tensorflow.keras import backend as K
+from tensorflow.keras import optimizers
+from tensorflow.keras.utils.io_utils import ask_to_proceed_with_overwrite
+from tenworflow.keras.engine import topology
 try:
     from keras.legacy import models as legacy_models
 except ImportError:
     warnings.warn("If keras legacy layers are required, the model won't compile")
-from keras.models import model_from_config, Sequential
+from tensorflow.keras.models import model_from_config, Sequential
 
 try:
     import h5py

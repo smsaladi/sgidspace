@@ -16,14 +16,14 @@
 #  along with sgidspace.  If not, see <http://www.gnu.org/licenses/>.
 #
 #------------------------------------------------------------------------------
-from keras.layers import Input, Conv1D, Dense, MaxPooling1D, Flatten, Activation, Reshape, Subtract
-from keras.layers.normalization import BatchNormalization
+from tensorflow.keras.layers import Input, Conv1D, Dense, MaxPooling1D, Flatten, Activation, Reshape, Subtract
+from tensorflow.keras.layers.normalization import BatchNormalization
 import tensorflow.compat.v1 as tf
 from sgidspace.sequence_generator import IUPAC_CODES
 
 
 def build_network(outputs, from_embed=False):
-    
+
     # Inputs
     if from_embed:
         with tf.variable_scope('embedding_input') as scope:
@@ -40,13 +40,13 @@ def build_network(outputs, from_embed=False):
             x = Conv1D(24, 3, activation='elu', padding='same', name='encoder_conv1', kernel_initializer='he_uniform')(x)
             x = BatchNormalization(name='encoder_bn1')(x)
             x = MaxPooling1D()(x)
-        
+
             x = Conv1D(32, 5, activation='elu', padding='same', name='encoder_conv2', kernel_initializer='he_uniform')(x)
             x = BatchNormalization(name='encoder_bn2')(x)
             x = Conv1D(48, 5, activation='elu', padding='same', name='encoder_conv3', kernel_initializer='he_uniform')(x)
             x = BatchNormalization(name='encoder_bn3')(x)
             x = MaxPooling1D()(x)
-        
+
             x = Conv1D(64, 7, activation='elu', padding='same', name='encoder_conv4', kernel_initializer='he_uniform')(x)
             x = BatchNormalization(name='encoder_bn4')(x)
             x = Conv1D(96, 7, activation='elu', padding='same', name='encoder_conv5', kernel_initializer='he_uniform')(x)

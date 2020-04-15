@@ -21,11 +21,21 @@ import os.path
 import glob
 
 import tensorflow as tf
-import keras.backend as K 
+import tensorflow.keras.backend as K
 
 from sgidspace.batch_processor import BatchProcessor
 from sgidspace.sgikeras.metrics import precision, recall, fmeasure
 from load_outputs import load_outputs
+
+tf.config.threading.set_inter_op_parallelism_threads(14)
+tf.config.threading.set_intra_op_parallelism_threads(14)
+# config = tf.compat.v1.ConfigProto(device_count={'cpu':20})
+# session = tf.compat.v1.Session(config=config)
+
+os.environ["OMP_NUM_THREADS"] = "14"
+os.environ["KMP_BLOCKTIME"] = "30"
+os.environ["KMP_SETTINGS"] = "1"
+os.environ["KMP_AFFINITY"]= "granularity=fine,verbose,compact,1,0"
 
 def evaluate_model(
         model_fn,
